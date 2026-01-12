@@ -1,0 +1,130 @@
+@startuml Local Docker/Kubernetes Architecture
+!define RECTANGLE class
+
+skinparam componentStyle rectangle
+skinparam backgroundColor #FEFEFE
+skinparam component {
+    BackgroundColor<<laptop>> LightBlue
+    BackgroundColor<<desktop>> LightGreen
+    BackgroundColor<<docker>> Orange
+    BackgroundColor<<k8s>> CornflowerBlue
+}
+
+title AI Coding Assistant - Local Development Architecture\n(Docker/Kubernetes on Desktop, Remote Access from Laptop)
+
+' Laptop Layer
+package "Development Laptop" <<laptop>> {
+    [Web Browser] as Browser
+    [VS Code Extension] as VSCode
+    [REST Client] as Client
+}
+
+' Network Layer
+cloud "Network (SSH Tunnel / Tailscale / Ngrok)" as Network {
+    [Port Forwarding\n:8080 -> :8080] as PortForward
+}
+
+' Desktop Layer
+package "Desktop Machine\n(Docker Desktop with K8s)" <<desktop>> {
+
+    ' Kubernetes Cluster
+    package "Kubernetes Cluster" <<k8s>> {
+
+        ' Frontend Services
+        package "Frontend Layer" {
+            [Web UI\n(React/Svelte)] as WebUI
+            [API Gateway\n(FastAPI/Kong)] as Gateway
+        }
+
+        ' Core Services
+        package "Core Services Layer" {
+            [Code Agent Service\n(Python)] as CodeAgent
+            [Tool Executor\n(Sandboxed)] as ToolExec
+            [Session Manager\n(Redis)] as Session
+            [Context Manager\n(Vector DB)] as Context
+        }
+
+        ' AI/LLM Layer
+        package "AI/LLM Layer" {
+            [LLM Inference\n(vLLM/Ollama)] as LLM
+            [Embedding Service\n(SentenceTransformers)] as Embed
+            [RAG Pipeline\n(LangChain)] as RAG
+        }
+
+        ' Storage Layer
+        package "Storage Layer" {
+            database "PostgreSQL\n(Conversations)" as Postgres
+            database "Redis\n(Cache/Sessions)" as Redis
+            database "Qdrant/Milvus\n(Vector Store)" as VectorDB
+            storage "MinIO/S3\n(Files/Models)" as S3
+        }
+
+        ' Model Storage
+        package "Model Volumes" {
+            storage "LLM Models\n(7B-34B params)" as Models
+            storage "Fine-tuned Models\n(NHS Healthcare)" as FinetuneModels
+        }
+    }
+}
+
+' Connections - User to Desktop
+Browser --> Network : HTTPS
+VSCode --> Network : WebSocket/REST
+Client --> Network : REST API
+Network --> Gateway : Forward Requests
+
+' Internal Kubernetes Connections
+Gateway --> WebUI
+Gateway --> CodeAgent
+WebUI --> CodeAgent
+
+CodeAgent --> ToolExec : Execute Tools\n(Read/Write/Bash/Grep)
+CodeAgent --> Session : Session State
+CodeAgent --> Context : Code Context
+CodeAgent --> RAG : Retrieve Context
+CodeAgent --> LLM : LLM Inference
+
+ToolExec --> Postgres : Store Results
+Session --> Redis
+Context --> VectorDB
+Context --> Embed
+
+RAG --> VectorDB : Vector Search
+RAG --> Embed : Generate Embeddings
+RAG --> LLM : Enhanced Prompts
+
+LLM --> Models : Load Base Models
+LLM --> FinetuneModels : Load NHS Models
+
+' Storage connections
+CodeAgent --> Postgres : Save Conversations
+CodeAgent --> S3 : Store Artifacts
+
+note right of Network
+    Options for Remote Access:
+    1. SSH Tunnel: ssh -L 8080:localhost:8080 user@desktop-ip
+    2. Tailscale: Mesh VPN (easiest)
+    3. Ngrok: Public URL tunnel
+    4. WireGuard: Self-hosted VPN
+end note
+
+note bottom of LLM
+    Recommended Models:
+    - CodeLlama 34B (code generation)
+    - DeepSeek Coder 33B (coding)
+    - Mistral 7B (general reasoning)
+    - Mixtral 8x7B (complex tasks)
+
+    For CPU: Use quantized models (GGUF)
+    For GPU: Use full precision models
+end note
+
+note bottom of Models
+    Resource Requirements (Desktop):
+    - RAM: 32GB minimum (64GB recommended)
+    - Storage: 200GB for models + data
+    - GPU: Optional (NVIDIA RTX 3060+ with 12GB VRAM)
+    - CPU: 8+ cores for CPU inference
+end note
+
+@enduml

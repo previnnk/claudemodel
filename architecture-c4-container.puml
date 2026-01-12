@@ -1,0 +1,118 @@
+@startuml C4 Container Diagram - AI Coding Assistant
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Container Diagram - AI Coding Assistant (Production Architecture)
+
+LAYOUT_TOP_DOWN()
+
+Person(user, "User", "Developer or NHS Staff")
+
+System_Boundary(ai_system, "AI Coding Assistant System") {
+
+    Container(web_ui, "Web UI", "React, TypeScript", "Provides user interface for chat, code editor, and file browser")
+
+    Container(api_gateway, "API Gateway", "Kong/Traefik", "Routes requests, rate limiting, authentication, API key management")
+
+    Container(backend_api, "Backend API", "FastAPI, Python", "Handles chat, sessions, tool orchestration")
+
+    Container(code_agent, "Code Agent", "Python", "Executes tools: Read, Write, Bash, Grep, Glob")
+
+    Container(integration_layer, "Integration Layer", "Python, FastAPI", "Pluggable connectors for external systems (SharePoint, GitHub, Confluence, DBs)")
+
+    Container(mcp_server, "MCP Server", "Python/TypeScript", "Model Context Protocol server for standardized integrations")
+
+    Container(llm_router, "LLM Router", "Python", "Routes requests to appropriate LLM based on context")
+
+    Container(vllm_general, "vLLM General", "vLLM, Python", "Serves general coding models (CodeLlama 34B)")
+
+    Container(vllm_nhs, "vLLM NHS", "vLLM, Python", "Serves NHS fine-tuned medical model")
+
+    Container(rag_service, "RAG Service", "LangChain, Python", "Retrieval-augmented generation pipeline")
+
+    Container(embedding_service, "Embedding Service", "SentenceTransformers", "Generates embeddings for RAG")
+
+    ContainerDb(postgres, "PostgreSQL", "PostgreSQL 16", "Stores conversations, sessions, audit logs")
+
+    ContainerDb(redis, "Redis Cluster", "Redis 7", "Caching, rate limiting, session store")
+
+    ContainerDb(qdrant, "Qdrant Cluster", "Qdrant", "Vector database for code embeddings")
+
+    ContainerDb(minio, "Object Storage", "MinIO/S3", "Stores files, artifacts, model checkpoints")
+
+    Container(monitoring, "Monitoring Stack", "Prometheus, Grafana", "Metrics, logging, alerting")
+}
+
+System_Ext(github, "GitHub", "Source code repository")
+System_Ext(sharepoint, "SharePoint", "Document storage")
+System_Ext(confluence, "Confluence", "Wiki/documentation")
+System_Ext(oracle_db, "Oracle Database", "Clinical data")
+System_Ext(sql_server, "SQL Server", "Equipment data")
+System_Ext(epic_ehr, "Epic EHR", "Patient records")
+
+Rel(user, web_ui, "Uses", "HTTPS")
+Rel(user, api_gateway, "API Requests", "HTTPS/WSS")
+
+Rel(web_ui, api_gateway, "API calls", "HTTPS/WSS")
+Rel(api_gateway, backend_api, "Routes requests", "HTTP")
+
+Rel(backend_api, code_agent, "Execute tools", "gRPC/HTTP")
+Rel(backend_api, integration_layer, "Query external systems", "HTTP")
+Rel(backend_api, mcp_server, "MCP requests", "JSON-RPC")
+Rel(backend_api, llm_router, "LLM inference", "HTTP")
+Rel(backend_api, rag_service, "Retrieve context", "HTTP")
+Rel(backend_api, postgres, "Read/Write", "TCP/SQL")
+Rel(backend_api, redis, "Cache/Session", "TCP")
+
+Rel(code_agent, minio, "Store/retrieve files", "S3 API")
+
+Rel(integration_layer, github, "API calls", "REST/GraphQL")
+Rel(integration_layer, sharepoint, "API calls", "Microsoft Graph")
+Rel(integration_layer, confluence, "API calls", "REST")
+Rel(integration_layer, oracle_db, "Queries", "JDBC")
+Rel(integration_layer, sql_server, "Queries", "JDBC")
+Rel(integration_layer, epic_ehr, "FHIR queries", "HTTPS")
+
+Rel(mcp_server, github, "Git operations", "Git/SSH")
+Rel(mcp_server, sharepoint, "File operations", "Microsoft Graph")
+
+Rel(llm_router, vllm_general, "Coding queries", "HTTP")
+Rel(llm_router, vllm_nhs, "Medical queries", "HTTP")
+
+Rel(rag_service, qdrant, "Vector search", "gRPC/HTTP")
+Rel(rag_service, embedding_service, "Generate embeddings", "HTTP")
+Rel(rag_service, integration_layer, "Fetch documents", "HTTP")
+
+Rel(embedding_service, redis, "Cache embeddings", "TCP")
+
+Rel(monitoring, backend_api, "Scrapes metrics", "HTTP")
+Rel(monitoring, vllm_general, "GPU metrics", "HTTP")
+Rel(monitoring, postgres, "DB metrics", "TCP")
+
+note right of integration_layer
+  Pluggable Architecture:
+  - Connector Factory pattern
+  - Each integration is a plugin
+  - Easy to add new connectors
+  - Configurable via API Gateway
+  - OAuth2/API key management
+  - Circuit breaker for fault tolerance
+end note
+
+note right of mcp_server
+  MCP Protocol:
+  - Resources (files, docs)
+  - Prompts (templates)
+  - Tools (operations)
+  - Standardized JSON-RPC 2.0
+  - Server implements specific capabilities
+end note
+
+note bottom of vllm_general
+  GPU Nodes:
+  - NVIDIA A100/H100
+  - Tensor parallelism
+  - Continuous batching
+  - Auto-scaling based on load
+end note
+
+@enduml

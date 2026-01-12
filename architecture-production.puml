@@ -1,0 +1,243 @@
+@startuml Production GPU Architecture for Nutonics
+!define RECTANGLE class
+
+skinparam componentStyle rectangle
+skinparam backgroundColor #FEFEFE
+skinparam component {
+    BackgroundColor<<client>> LightBlue
+    BackgroundColor<<ingress>> Orange
+    BackgroundColor<<service>> LightGreen
+    BackgroundColor<<ai>> Purple
+    BackgroundColor<<storage>> Yellow
+    BackgroundColor<<gpu>> Red
+}
+
+title AI Coding Assistant - Production Architecture\n(Nutonics GPU Cluster with High Availability)
+
+' Client Layer
+package "Client Applications" <<client>> {
+    [Web Browser] as Browser
+    [VS Code Extension] as VSCode
+    [API Clients] as APIClient
+    [Mobile App] as Mobile
+}
+
+' Load Balancer / Ingress
+cloud "Internet" {
+    [Load Balancer\n(Nginx/HAProxy)] as LB
+}
+
+' Kubernetes Cluster on Nutonics
+package "Nutonics GPU Cluster\n(Kubernetes Production)" {
+
+    ' Ingress Layer
+    package "Ingress Layer" <<ingress>> {
+        [Ingress Controller\n(Nginx/Traefik)] as Ingress
+        [API Gateway\n(Kong/Tyk)] as Gateway
+        [Rate Limiter] as RateLimit
+        [Auth Service\n(OAuth2/JWT)] as Auth
+    }
+
+    ' Application Layer
+    package "Application Services" <<service>> {
+        [Web UI Service\n(3 replicas)] as WebUI
+        [Code Agent Service\n(5 replicas)] as CodeAgent
+        [Tool Executor\n(10 replicas, isolated)] as ToolExec
+        [Session Manager\n(3 replicas)] as SessionMgr
+        [Context Manager\n(3 replicas)] as ContextMgr
+        [File Manager\n(3 replicas)] as FileMgr
+    }
+
+    ' AI/ML Layer with GPU
+    package "AI/ML Services (GPU Nodes)" <<ai>> {
+
+        package "GPU Node 1\n(NVIDIA A100/H100)" {
+            [vLLM Server 1\n(Model Serving)] as vLLM1
+            [GPU: 40GB/80GB VRAM] as GPU1
+        }
+
+        package "GPU Node 2\n(NVIDIA A100/H100)" {
+            [vLLM Server 2\n(Model Serving)] as vLLM2
+            [GPU: 40GB/80GB VRAM] as GPU2
+        }
+
+        package "GPU Node 3\n(NVIDIA A100/H100)" {
+            [vLLM Server 3\n(NHS Fine-tuned)] as vLLM3
+            [GPU: 40GB/80GB VRAM] as GPU3
+        }
+
+        [LLM Router\n(Load Balance)] as LLMRouter
+        [Embedding Service\n(GPU accelerated)] as EmbedService
+        [Fine-tuning Pipeline\n(LoRA/QLoRA)] as Finetune
+    }
+
+    ' RAG and Vector Layer
+    package "RAG & Vector Services" <<service>> {
+        [RAG Pipeline\n(LangChain/LlamaIndex)] as RAG
+        [Document Processor] as DocProc
+        [Code Indexer\n(Tree-sitter)] as CodeIndex
+    }
+
+    ' Storage Layer
+    package "Distributed Storage" <<storage>> {
+        database "PostgreSQL\n(HA Cluster\n3 nodes)" as PostgresHA
+        database "Redis Cluster\n(6 nodes\n3 master, 3 replica)" as RedisCluster
+        database "Qdrant Cluster\n(Vector DB\n3 nodes)" as VectorCluster
+        storage "S3/MinIO\n(Distributed Object Store\n4 nodes)" as S3Cluster
+        storage "NFS/Ceph\n(Model Storage)" as ModelStorage
+    }
+
+    ' Monitoring & Observability
+    package "Observability Stack" {
+        [Prometheus\n(Metrics)] as Prometheus
+        [Grafana\n(Dashboards)] as Grafana
+        [Loki\n(Logs)] as Loki
+        [Jaeger\n(Tracing)] as Jaeger
+        [Alert Manager] as Alerts
+    }
+
+    ' Model Training Infrastructure
+    package "Training Infrastructure" <<gpu>> {
+        [Training Job Manager\n(Kubeflow)] as Kubeflow
+        [Dataset Pipeline] as Dataset
+        [Model Registry\n(MLflow)] as MLRegistry
+        [Experiment Tracking] as ExpTrack
+    }
+}
+
+' External Services
+cloud "External Services" {
+    [GitHub/GitLab\n(Code Repos)] as Git
+    [NHS Data Sources\n(Secure API)] as NHSData
+    [Backup Storage\n(S3/Azure Blob)] as Backup
+}
+
+' Client to LB
+Browser --> LB : HTTPS
+VSCode --> LB : WSS/HTTPS
+APIClient --> LB : HTTPS
+Mobile --> LB : HTTPS
+
+' LB to Ingress
+LB --> Ingress : Forward Traffic
+
+' Ingress Layer Flow
+Ingress --> RateLimit : Check Limits
+RateLimit --> Auth : Authenticate
+Auth --> Gateway : Authorized Requests
+
+' Gateway to Services
+Gateway --> WebUI
+Gateway --> CodeAgent
+Gateway --> FileMgr
+
+' Service Communications
+WebUI --> CodeAgent
+CodeAgent --> ToolExec : Execute Tools
+CodeAgent --> SessionMgr : Manage Sessions
+CodeAgent --> ContextMgr : Code Context
+CodeAgent --> RAG : Retrieve Context
+CodeAgent --> LLMRouter : LLM Requests
+
+' LLM Router to GPU Nodes
+LLMRouter --> vLLM1 : Load Balance
+LLMRouter --> vLLM2 : Load Balance
+LLMRouter --> vLLM3 : NHS Queries
+
+vLLM1 --> GPU1
+vLLM2 --> GPU2
+vLLM3 --> GPU3
+
+' RAG Pipeline
+RAG --> VectorCluster : Vector Search
+RAG --> EmbedService : Generate Embeddings
+RAG --> CodeIndex : Code Structure
+DocProc --> VectorCluster : Index Documents
+
+ContextMgr --> VectorCluster
+ContextMgr --> EmbedService
+ToolExec --> FileMgr
+
+' Storage Connections
+SessionMgr --> RedisCluster
+CodeAgent --> PostgresHA : Conversations
+FileMgr --> S3Cluster : Store Files
+LLMRouter --> ModelStorage : Load Models
+vLLM1 --> ModelStorage
+vLLM2 --> ModelStorage
+vLLM3 --> ModelStorage
+
+' Training Pipeline
+Finetune --> Kubeflow : Submit Jobs
+Kubeflow --> GPU1 : Training
+Kubeflow --> GPU2 : Training
+Dataset --> NHSData : Fetch NHS Data
+Finetune --> MLRegistry : Save Models
+Finetune --> ExpTrack : Track Experiments
+MLRegistry --> ModelStorage : Store Models
+
+' Monitoring
+CodeAgent --> Prometheus : Metrics
+LLMRouter --> Prometheus : GPU Metrics
+vLLM1 --> Prometheus : Inference Metrics
+Prometheus --> Grafana : Visualize
+CodeAgent --> Loki : Logs
+CodeAgent --> Jaeger : Traces
+Prometheus --> Alerts : Trigger Alerts
+
+' External
+CodeAgent --> Git : Clone/Fetch Repos
+Kubeflow --> NHSData : Training Data
+S3Cluster --> Backup : Backup Data
+
+note right of LB
+    High Availability Features:
+    - Multi-region deployment (optional)
+    - Auto-scaling based on load
+    - Health checks & auto-recovery
+    - DDoS protection
+    - SSL/TLS termination
+end note
+
+note bottom of vLLM1
+    GPU Resource Allocation:
+    - Each GPU node runs vLLM for efficient inference
+    - Tensor parallelism for large models (70B+)
+    - Continuous batching for throughput
+    - KV cache optimization
+
+    Model Deployment Strategy:
+    - Node 1 & 2: General coding models (CodeLlama, DeepSeek)
+    - Node 3: NHS fine-tuned specialist model
+    - Auto-scaling: Add nodes based on queue depth
+end note
+
+note bottom of ModelStorage
+    Production Requirements:
+    - GPU: 3-6 NVIDIA A100 (40GB) or H100 (80GB)
+    - RAM: 256GB per node
+    - Storage: 2TB NVMe for models, 10TB for data
+    - Network: 100Gbps interconnect (GPU-GPU)
+    - Backup: Daily snapshots of models & data
+end note
+
+note bottom of Finetune
+    NHS Fine-tuning Pipeline:
+    1. Collect NHS healthcare data (de-identified)
+    2. Preprocess clinical documentation
+    3. Fine-tune with LoRA/QLoRA (parameter-efficient)
+    4. Evaluate on medical coding tasks
+    5. Deploy to dedicated GPU node
+
+    Compliance: GDPR, NHS Data Security Standards
+end note
+
+note bottom of VectorCluster
+    Vector Database Configuration:
+    - Index: 100M+ code embeddings
+    - Dimensions: 768/1024 (embedding model)
+    - Search: <100ms for P95
+    - Replication: 3x for HA
+end note
+
+@enduml

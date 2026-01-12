@@ -1,0 +1,169 @@
+@startuml C4 Component Diagram - Integration Layer
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram - Integration Layer (Pluggable Enterprise Connectors)
+
+LAYOUT_WITH_LEGEND()
+
+Container_Boundary(integration_layer, "Integration Layer") {
+
+    Component(integration_api, "Integration API", "FastAPI", "REST API for external system integrations")
+
+    Component(connector_factory, "Connector Factory", "Python", "Creates and manages connector instances")
+
+    Component(auth_manager, "Auth Manager", "Python", "Manages OAuth2, API keys, credentials")
+
+    Component(circuit_breaker, "Circuit Breaker", "Python (pybreaker)", "Fault tolerance and fallback")
+
+    Component(rate_limiter, "Rate Limiter", "Python (slowapi)", "Rate limiting for external APIs")
+
+    Component(cache_manager, "Cache Manager", "Python", "Caches external API responses")
+
+    ' GitHub Connector
+    Component(github_connector, "GitHub Connector", "Python, PyGithub", "GitHub API integration: repos, PRs, issues, code search")
+
+    ' SharePoint Connector
+    Component(sharepoint_connector, "SharePoint Connector", "Python, msal", "SharePoint/OneDrive: document search, retrieval, metadata")
+
+    ' Confluence Connector
+    Component(confluence_connector, "Confluence Connector", "Python, atlassian-python-api", "Confluence: page search, content retrieval")
+
+    ' Database Connectors
+    Component(oracle_connector, "Oracle Connector", "Python, cx_Oracle", "Oracle DB: read-only queries for clinical data")
+
+    Component(sqlserver_connector, "SQL Server Connector", "Python, pyodbc", "SQL Server: equipment and inventory queries")
+
+    ' FHIR Connector
+    Component(fhir_connector, "FHIR Connector", "Python, fhirclient", "Epic EHR via FHIR: patient context, observations")
+
+    ' Jira Connector (Example extensibility)
+    Component(jira_connector, "Jira Connector", "Python, jira", "Jira: ticket retrieval, creation")
+
+    ' MCP Integration
+    Component(mcp_adapter, "MCP Adapter", "Python", "Adapts MCP protocol to integration layer")
+
+    ComponentDb(config_store, "Config Store", "JSON/YAML", "Connector configurations")
+}
+
+Container_Ext(backend_api, "Backend API", "Orchestrates requests")
+Container_Ext(mcp_server, "MCP Server", "MCP protocol handler")
+Container_Ext(rag_service, "RAG Service", "Document retrieval")
+ContainerDb_Ext(redis, "Redis", "Caching")
+
+System_Ext(github, "GitHub")
+System_Ext(sharepoint, "SharePoint")
+System_Ext(confluence, "Confluence")
+System_Ext(oracle_db, "Oracle Database")
+System_Ext(sql_server, "SQL Server")
+System_Ext(epic_ehr, "Epic EHR")
+System_Ext(jira, "Jira")
+
+' API Layer Relationships
+Rel(backend_api, integration_api, "Query external systems", "HTTP/JSON")
+Rel(mcp_server, mcp_adapter, "MCP requests", "JSON-RPC")
+Rel(rag_service, integration_api, "Fetch documents", "HTTP/JSON")
+
+' Internal Integration Layer
+Rel(integration_api, connector_factory, "Get connector")
+Rel(integration_api, auth_manager, "Get credentials")
+Rel(integration_api, circuit_breaker, "Wrap calls")
+Rel(integration_api, rate_limiter, "Check limits")
+Rel(integration_api, cache_manager, "Cache check")
+
+Rel(connector_factory, github_connector, "Creates")
+Rel(connector_factory, sharepoint_connector, "Creates")
+Rel(connector_factory, confluence_connector, "Creates")
+Rel(connector_factory, oracle_connector, "Creates")
+Rel(connector_factory, sqlserver_connector, "Creates")
+Rel(connector_factory, fhir_connector, "Creates")
+Rel(connector_factory, jira_connector, "Creates")
+
+Rel(connector_factory, config_store, "Read config")
+Rel(auth_manager, config_store, "Read credentials")
+
+Rel(cache_manager, redis, "Cache ops", "TCP")
+Rel(mcp_adapter, connector_factory, "Use connectors")
+
+' External System Relationships
+Rel(github_connector, github, "API calls", "REST/GraphQL")
+Rel(sharepoint_connector, sharepoint, "Microsoft Graph API", "HTTPS")
+Rel(confluence_connector, confluence, "REST API", "HTTPS")
+Rel(oracle_connector, oracle_db, "SQL queries", "JDBC/OCI")
+Rel(sqlserver_connector, sql_server, "SQL queries", "ODBC")
+Rel(fhir_connector, epic_ehr, "FHIR API", "HTTPS")
+Rel(jira_connector, jira, "REST API", "HTTPS")
+
+note right of connector_factory
+  Factory Pattern:
+  - Dynamically loads connectors
+  - Plugin architecture
+  - Each connector implements:
+    * connect()
+    * query()
+    * disconnect()
+    * health_check()
+
+  Adding new connector:
+  1. Implement BaseConnector interface
+  2. Add to config_store
+  3. Factory auto-discovers
+end note
+
+note right of github_connector
+  GitHub Operations:
+  - Repository search
+  - Code search
+  - PR creation/review
+  - Issue management
+  - Webhook handling
+  - File retrieval
+end note
+
+note right of sharepoint_connector
+  SharePoint Operations:
+  - Document search
+  - File download
+  - Metadata extraction
+  - List queries
+  - Permission checks
+  - Version history
+end note
+
+note right of confluence_connector
+  Confluence Operations:
+  - Page search
+  - Content retrieval
+  - Label queries
+  - Space browsing
+  - Attachment download
+end note
+
+note bottom of oracle_connector
+  Database Connectors:
+  - Read-only access
+  - Connection pooling
+  - Query timeout
+  - Result caching
+  - SQL injection prevention
+  - Row-level security
+end note
+
+note bottom of circuit_breaker
+  Resilience Patterns:
+  - Circuit breaker (3 failures → open)
+  - Retry with exponential backoff
+  - Fallback responses
+  - Timeout management
+  - Health checks
+end note
+
+note bottom of mcp_adapter
+  MCP Integration:
+  Exposes connectors as MCP resources:
+  - github://repo/path
+  - sharepoint://site/doc
+  - confluence://space/page
+  - db://oracle/query
+end note
+
+@enduml

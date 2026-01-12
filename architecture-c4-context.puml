@@ -1,0 +1,58 @@
+@startuml C4 Context Diagram - AI Coding Assistant
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title System Context Diagram - AI Coding Assistant (Production with Enterprise Integrations)
+
+LAYOUT_WITH_LEGEND()
+
+Person(developer, "Developer", "Software developer using the AI coding assistant")
+Person(nhs_staff, "NHS Staff", "Healthcare professional using the assistant")
+Person(admin, "System Administrator", "Manages and monitors the system")
+
+System(ai_assistant, "AI Coding Assistant", "Provides AI-powered code generation, medical knowledge, and documentation assistance")
+
+System_Ext(github, "GitHub", "Source code repository and version control")
+System_Ext(sharepoint, "SharePoint", "Document management and collaboration")
+System_Ext(confluence, "Confluence", "Knowledge base and documentation")
+System_Ext(oracle_db, "Oracle Database", "Enterprise patient and clinical data")
+System_Ext(sql_server, "SQL Server", "Equipment and inventory database")
+System_Ext(epic_ehr, "Epic EHR", "Electronic Health Records system")
+
+System_Ext(mcp_filesystem, "MCP File System", "File system access via MCP protocol")
+System_Ext(mcp_github, "MCP GitHub", "GitHub operations via MCP")
+System_Ext(mcp_sharepoint, "MCP SharePoint", "SharePoint access via MCP")
+
+Rel(developer, ai_assistant, "Uses for code generation", "HTTPS/WebSocket")
+Rel(nhs_staff, ai_assistant, "Uses for medical knowledge", "HTTPS")
+Rel(admin, ai_assistant, "Monitors and manages", "HTTPS")
+
+Rel(ai_assistant, github, "Retrieves code, creates PRs", "REST API/GraphQL")
+Rel(ai_assistant, sharepoint, "Searches documents, retrieves policies", "Microsoft Graph API")
+Rel(ai_assistant, confluence, "Searches documentation", "REST API")
+Rel(ai_assistant, oracle_db, "Queries clinical data (read-only)", "JDBC/SQL")
+Rel(ai_assistant, sql_server, "Queries equipment data", "JDBC/SQL")
+Rel(ai_assistant, epic_ehr, "Retrieves patient context (secure)", "FHIR API")
+
+Rel(ai_assistant, mcp_filesystem, "File operations", "MCP Protocol")
+Rel(ai_assistant, mcp_github, "GitHub operations", "MCP Protocol")
+Rel(ai_assistant, mcp_sharepoint, "SharePoint operations", "MCP Protocol")
+
+note right of ai_assistant
+  Core Features:
+  - Code generation & completion
+  - Medical knowledge assistance
+  - RAG from enterprise sources
+  - Multi-database queries
+  - Document retrieval
+  - Pluggable integrations
+end note
+
+note right of mcp_filesystem
+  MCP (Model Context Protocol):
+  - Standardized protocol for AI context
+  - Pluggable server architecture
+  - Secure, sandboxed operations
+  - Used by Claude Desktop, Continue.dev
+end note
+
+@enduml

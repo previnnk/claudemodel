@@ -1,0 +1,154 @@
+@startuml C4 Component Diagram - Backend API
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram - Backend API Service
+
+LAYOUT_TOP_DOWN()
+
+Container_Boundary(backend_api, "Backend API Service") {
+
+    Component(api_routes, "API Routes", "FastAPI", "REST endpoints for chat, tools, sessions")
+
+    Component(websocket_handler, "WebSocket Handler", "FastAPI WebSocket", "Real-time bidirectional communication")
+
+    Component(chat_controller, "Chat Controller", "Python", "Orchestrates chat flow")
+
+    Component(session_manager, "Session Manager", "Python", "Manages user sessions and conversation history")
+
+    Component(tool_orchestrator, "Tool Orchestrator", "Python", "Coordinates tool execution (Read, Write, Bash, Grep, etc.)")
+
+    Component(llm_client, "LLM Client", "Python", "Communicates with LLM router")
+
+    Component(rag_client, "RAG Client", "Python", "Retrieves relevant context for queries")
+
+    Component(integration_client, "Integration Client", "Python", "Calls integration layer")
+
+    Component(mcp_client, "MCP Client", "Python", "MCP protocol client")
+
+    Component(prompt_builder, "Prompt Builder", "Python", "Constructs prompts with context, tools, examples")
+
+    Component(response_parser, "Response Parser", "Python", "Parses LLM responses, extracts tool calls")
+
+    Component(auth_middleware, "Auth Middleware", "Python", "JWT validation, API key checks")
+
+    Component(logging_middleware, "Logging Middleware", "Python", "Request/response logging")
+
+    Component(metrics_exporter, "Metrics Exporter", "Prometheus Client", "Exports metrics for monitoring")
+
+    ComponentDb(session_cache, "Session Cache", "Redis", "In-memory session state")
+
+    ComponentDb(conversation_db, "Conversation DB", "PostgreSQL", "Persistent conversation storage")
+}
+
+Container_Ext(code_agent, "Code Agent", "Tool execution")
+Container_Ext(llm_router, "LLM Router", "LLM inference")
+Container_Ext(rag_service, "RAG Service", "Context retrieval")
+Container_Ext(integration_layer, "Integration Layer", "External systems")
+Container_Ext(mcp_server, "MCP Server", "MCP operations")
+
+' Request Flow
+Rel(api_routes, auth_middleware, "Authenticate")
+Rel(api_routes, logging_middleware, "Log request")
+Rel(api_routes, chat_controller, "Handle chat")
+Rel(api_routes, session_manager, "Manage session")
+
+Rel(websocket_handler, chat_controller, "Stream chat")
+
+Rel(chat_controller, session_manager, "Get/update session")
+Rel(chat_controller, prompt_builder, "Build prompt")
+Rel(chat_controller, llm_client, "Request inference")
+Rel(chat_controller, response_parser, "Parse response")
+Rel(chat_controller, tool_orchestrator, "Execute tools")
+
+Rel(prompt_builder, rag_client, "Get context")
+Rel(prompt_builder, integration_client, "Fetch data")
+Rel(prompt_builder, mcp_client, "MCP resources")
+
+Rel(tool_orchestrator, code_agent, "Execute tool", "gRPC")
+
+Rel(llm_client, llm_router, "Inference", "HTTP")
+Rel(rag_client, rag_service, "Retrieve", "HTTP")
+Rel(integration_client, integration_layer, "Query", "HTTP")
+Rel(mcp_client, mcp_server, "MCP call", "JSON-RPC")
+
+Rel(session_manager, session_cache, "Cache ops", "TCP")
+Rel(session_manager, conversation_db, "Persist", "SQL")
+
+Rel(metrics_exporter, api_routes, "Collect metrics")
+
+note right of chat_controller
+  Chat Flow:
+  1. Receive user message
+  2. Retrieve session context
+  3. Call RAG for relevant code/docs
+  4. Query integrations (GitHub, SharePoint)
+  5. Build prompt with context
+  6. Send to LLM
+  7. Parse response
+  8. Execute any tool calls
+  9. Return final response
+  10. Update session
+end note
+
+note right of prompt_builder
+  Context Sources:
+  - Conversation history
+  - RAG (code embeddings)
+  - GitHub repositories
+  - SharePoint documents
+  - Confluence pages
+  - Database query results
+  - NHS clinical guidelines
+  - Equipment manuals
+
+  Prompt Structure:
+  - System instructions
+  - Available tools
+  - Retrieved context
+  - Conversation history
+  - User message
+end note
+
+note right of tool_orchestrator
+  Supported Tools:
+  - Read: Read files
+  - Write: Create/overwrite files
+  - Edit: Replace text in files
+  - Bash: Execute commands
+  - Grep: Search code
+  - Glob: Find files
+  - WebFetch: Fetch URLs
+  - GitOps: Git operations
+  - DBQuery: Database queries
+  - DocSearch: Search docs
+end note
+
+note bottom of response_parser
+  Response Types:
+  - Text response
+  - Tool calls (function calling)
+  - Streaming chunks
+  - Error messages
+
+  Parses structured outputs:
+  {
+    "text": "...",
+    "tool_calls": [{
+      "name": "Read",
+      "params": {"file_path": "..."}
+    }]
+  }
+end note
+
+note bottom of metrics_exporter
+  Metrics Exported:
+  - Request count/duration
+  - LLM inference time
+  - Tool execution time
+  - Error rates
+  - Active sessions
+  - Token usage
+  - Cache hit rate
+end note
+
+@enduml
